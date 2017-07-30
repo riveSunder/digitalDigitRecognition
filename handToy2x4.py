@@ -44,7 +44,7 @@ tf.app.flags.DEFINE_float('dropout', 0.1,
                             """proportion of weights to drop out.""")
 tf.app.flags.DEFINE_float('learningRate', 1e-3,
                             """Learning Rate.""")
-tf.app.flags.DEFINE_integer('batchSize', 79,
+tf.app.flags.DEFINE_integer('batchSize', 66,
                             """Minibatch size""")
 tf.app.flags.DEFINE_integer('mySeed',1337,"""pseudorandom number gen. seed""")
 
@@ -56,7 +56,7 @@ mySeed = FLAGS.mySeed
 
 # Graph parameters
 numLabels = 4
-convDepth = 32
+convDepth = 4
 imgHeight = 48
 imgWidth = 64
 #imgWidth = 64		
@@ -71,6 +71,7 @@ kern2Size = 5
 nVisible = imgHeight * imgWidth
 nHiddenDense = 1024
 nFlatPool = round(imgHeight/pool1Size/pool2Size)
+nPOOL = 96
 
 # learning parameters
 #lR = 1e-2 # learning rate
@@ -113,9 +114,15 @@ def cNNMTModel(data, labels, mode):
     # 5x5 depends on the max pooling. Here I've using max_pool2d with 
     # pool sizes of 5 and 4, so the dimension should be 100/5/4 = 5
     #
+    print(np.shape(pool2))
+
     pool2Flat = tf.reshape(pool2,
                            [-1,
-                            nFlatPool*nFlatPool*convDepth*2])
+                            nPOOL])
+    
+#    pool2Flat = tf.reshape(pool2,
+ #                          [-1,
+  #                          nFlatPool*nFlatPool*convDepth*2])
     denseHL1 = tf.layers.dense(inputs=pool2Flat,
                              units=nHiddenDense,
                              activation=tf.nn.relu)
@@ -215,6 +222,8 @@ def main(unused_argv):
    
 
     myData = np.load('./toyData/toyImgs.npy')
+    if(1):
+        myData = myData[:,:,:,0]
     myLabels = np.load('./toyData/toyTgts.npy')
     
     if(1):
