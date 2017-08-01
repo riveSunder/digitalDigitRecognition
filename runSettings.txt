@@ -1,0 +1,3 @@
+
+# Settings for first results with simple digital digit 0-3 classifier
+python handToy2x4.py --maxSteps=15000 --dropout=0.5 -learningRate=1e-3 --batchSize=256
