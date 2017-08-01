@@ -261,7 +261,7 @@ def main(unused_argv):
     sTime = time.time()
     # Create estimator
     MTClassifier = learn.Estimator(model_fn = cNNMTModel,
-                                   model_dir = "./Phi2x4/MTConvNetModel",
+                                   model_dir = "./toyModel/model",
                                    config=tf.contrib.learn.RunConfig(save_checkpoints_secs=50))
     
     # Metrics for evaluation
@@ -272,7 +272,7 @@ def main(unused_argv):
     # set up logging
     tensors_to_log = {"probabilities": "softmaxTensor"}
     logging_hook = tf.train.LoggingTensorHook(tensors = tensors_to_log,
-                                              every_n_iter = 50000)
+                                              every_n_iter = 10000)
     validationMetrics = {
     "accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
                                            prediction_key="classes"),
@@ -294,7 +294,7 @@ def main(unused_argv):
         metrics=validationMetrics,
         early_stopping_metric="accuracy",
         early_stopping_metric_minimize=False,
-        early_stopping_rounds=128000)
+        early_stopping_rounds=12800)
 
 
     # Train Model 
@@ -316,8 +316,23 @@ def main(unused_argv):
                                           y=testLabels,
                                           metrics=metrics)
     print("final results with test data (not seen during training, building of model):",testResults)
-    print("proportion of test data with MTs: ", np.mean(testLabels))
-
+    
+    plt.figure()
+    np.random.seed(15)
+    for c in range(1,10):
+        plt.subplot(3,3,c)
+        myDemo = int(round(np.random.random() * 63))
+        plt.imshow(testData[myDemo],cmap="gray")
+        if(testLabels[myDemo] == 0):
+            plt.title("Digit recog as ''0'' ")
+        elif(testLabels[myDemo] == 1):
+            plt.title("Digit recog as ''1'' ")
+        elif(testLabels[myDemo] == 2):
+            plt.title("Digit recog as ''2'' ")
+        elif(testLabels[myDemo] == 3):
+            plt.title("Digit recog as ''3'' ")
+            
+    plt.show()
 
 if __name__ == "__main__":
     tf.app.run()
