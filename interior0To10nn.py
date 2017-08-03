@@ -241,8 +241,8 @@ def main(unused_argv):
     
 
     # Save 10% for the evaluations data set. 
-    evalSamples = round(0.1*nSamples
-)    testSamples = round(0.2*nSamples)
+    evalSamples = round(0.1*nSamples)
+    testSamples = round(0.2*nSamples)
 
     # group and normalize the datasets
     trainData = np.array(myData[testSamples+1:nSamples,:],dtype="float32")
