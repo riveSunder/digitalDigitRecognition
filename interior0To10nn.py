@@ -241,8 +241,8 @@ def main(unused_argv):
     
 
     # Save 10% for the evaluations data set. 
-    evalSamples = round(0.1*nSamples)
-    testSamples = round(0.2*nSamples)
+    evalSamples = round(0.1*nSamples
+)    testSamples = round(0.2*nSamples)
 
     # group and normalize the datasets
     trainData = np.array(myData[testSamples+1:nSamples,:],dtype="float32")
@@ -318,29 +318,29 @@ def main(unused_argv):
                                           y=testLabels,
                                           metrics=metrics)
     print("final results with test data (not seen during training, building of model):",testResults)
-    
-    np.random.seed(15)
-    plt.figure()
-    
-    for c in range(1,10):
-        plt.subplot(3,3,c)
-        myDemo = int(round(np.random.random() * 63))
-        plt.imshow(testData[myDemo],cmap="gray")
-        for ck in range(0,12):
-            if(testLabels[myDemo] == ck):
-                plt.title("Digit recog as " + str(ck))
-    
-    plt.figure()
-    for c in range(1,10):
-        plt.subplot(3,3,c)
-        myDemo = int(round(np.random.random() * 63))
-        plt.imshow(testData[myDemo],cmap="gray")
-        for ck in range(0,12):
-            if(testLabels[myDemo] == ck):
-                plt.title("Digit recog as " + str(ck))
+    if (0): #uncomment the following to get classification examples 
+        np.random.seed(16)
+        plt.figure()
         
+        for c in range(1,10):
+            plt.subplot(3,3,c)
+            myDemo = int(round(np.random.random() * 63))
+            plt.imshow(testData[myDemo],cmap="gray")
+            for ck in range(0,12):
+                if(testLabels[myDemo] == ck):
+                    plt.title("Digit recog as " + str(ck))
+        
+        plt.figure()
+        for c in range(1,10):
+            plt.subplot(3,3,c)
+            myDemo = int(round(np.random.random() * 63))
+            plt.imshow(testData[myDemo],cmap="gray")
+            for ck in range(0,12):
+                if(testLabels[myDemo] == ck):
+                    plt.title("Digit recog as " + str(ck))
             
-    plt.show()
+                
+        plt.show()
 
 if __name__ == "__main__":
     tf.app.run()
