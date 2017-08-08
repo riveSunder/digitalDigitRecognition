@@ -55,7 +55,7 @@ batchSize = FLAGS.batchSize
 mySeed = FLAGS.mySeed
 
 # Graph parameters
-numLabels = 12
+numLabels = 13
 convDepth = 4
 imgHeight = 48
 imgWidth = 64
@@ -221,10 +221,10 @@ def main(unused_argv):
     # Load the training data
    
 
-    myData = np.load('./interiorData/intImgs.npy')
+    myData = np.load('./outdoors0to12/out012Imgs.npy')
     if(1):
         myData = myData[:,:,:,0]
-    myLabels = np.load('./interiorData/intTgts.npy')
+    myLabels = np.load('./outdoors0to12/out012Tgts.npy')
     
 
 
@@ -263,7 +263,7 @@ def main(unused_argv):
     sTime = time.time()
     # Create estimator
     MTClassifier = learn.Estimator(model_fn = cNNMTModel,
-                                   model_dir = "./interiorModel/model",
+                                   model_dir = "./outdoors0to12Model/model",
                                    config=tf.contrib.learn.RunConfig(save_checkpoints_secs=50))
     
     # Metrics for evaluation
