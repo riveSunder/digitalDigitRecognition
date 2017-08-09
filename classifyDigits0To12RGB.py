@@ -55,34 +55,34 @@ dORate = FLAGS.dropout
 maxSteps = FLAGS.maxSteps
 batchSize = FLAGS.batchSize
 mySeed = FLAGS.mySeed
-
+iRGB = FLAGS.iRGB
 # Graph parameters
 numLabels = 13
-convDepth = 4
+convDepth = 16
 imgHeight = 48
 imgWidth = 64
 #imgWidth = 64		
-pool1Size = 4
-pool2Size = 4
-kern1Size = 10
-kern2Size = 5
-iRGB = 3
+pool1Size = 2
+pool2Size = 2
+kern1Size = 8 #
+kern2Size = 4  #
+
 # logit size to 4 choices
 # hidden layer to 784 (from 1024)
 # second hidden layer (copy of first)
 
-nVisible = imgHeight * imgWidth
+nVisible = imgHeight * imgWidth * iRGB
 nHiddenDense = 1024
 nFlatPool = round(imgHeight/pool1Size/pool2Size)
 nPOOL = 96
-
+nPool = int((int(imgHeight/pool1Size/pool2Size)*int(imgWidth/pool1Size/pool2Size)*convDepth*2)/iRGB)
 # learning parameters
 #lR = 1e-2 # learning rate
 #batchSize = 79
 
 
         
-def cNNMTModel(data, labels, mode):
+def cNNDigitsModel(data, labels, mode):
     # mode is a boolean that determines whether to apply dropout (for training)
     # or keep all layers (evaluation/test data)
     #inputLayer = tf.reshape(data, [-1,100,100,1])
@@ -96,6 +96,7 @@ def cNNMTModel(data, labels, mode):
         kernel_size = [kern1Size,kern1Size],
         padding = "same",
         activation = tf.nn.relu)
+
     # pooling (reduce size for faster learning)
     pool1 = tf.layers.max_pooling2d(
         inputs = conv1,
@@ -104,28 +105,27 @@ def cNNMTModel(data, labels, mode):
     # Second convo layer and pooling
     conv2 = tf.layers.conv2d(
         inputs=pool1,
-        filters = convDepth*2,
+        filters = convDepth*2, #24x32x32x3
         kernel_size = [kern2Size,kern2Size],
         padding = "same",
         activation = tf.nn.relu)
     pool2 = tf.layers.max_pooling2d(
         inputs = conv2,
         pool_size = pool2Size, # for square pool sizes can specify single number as size
-        strides = pool2Size)
+        strides = pool2Size) #12x16x64x3
     
     # dense layers
     # 5x5 depends on the max pooling. Here I've using max_pool2d with 
     # pool sizes of 5 and 4, so the dimension should be 100/5/4 = 5
-    #
-    print(np.shape(pool2))
-
+    
+    #pool2Flat = tf.reshape(pool2,
+    #                       [-1,
+    #                        nPOOL])
+    
     pool2Flat = tf.reshape(pool2,
                            [-1,
-                            nPOOL])
-    
-#    pool2Flat = tf.reshape(pool2,
- #                          [-1,
-  #                          nFlatPool*nFlatPool*convDepth*2])
+                            nPool])
+
     denseHL1 = tf.layers.dense(inputs=pool2Flat,
                              units=nHiddenDense,
                              activation=tf.nn.relu)
@@ -165,9 +165,9 @@ def cNNMTModel(data, labels, mode):
                                rate=dORate,
                                training = mode == learn.ModeKeys.TRAIN)
 
-
-    logits = tf.layers.dense(inputs=dropout4,
-                             units=numLabels) # 2 units for 2 classes: w & w/o MTs
+    dropout5 = (dropout4[-1,:,:,0]+dropout4[-1,:,:,3]+dropout4[-1,:,:,2])/3
+    logits = tf.layers.dense(inputs=dropout5,
+                             units=numLabels) # 13 units for 13 classes: 0-10 plus null and second 2
     
 
     # loss and training op are None
@@ -227,6 +227,7 @@ def main(unused_argv):
     myData = np.load('./outdoors0to12/out012Imgs.npy')
     if(iRGB == 1):
         myData = myData[:,:,:,0:]
+        print("grayscale")
     myLabels = np.load('./outdoors0to12/out012Tgts.npy')
     
 
@@ -265,7 +266,7 @@ def main(unused_argv):
     print("mean value for evaluation labels (loaded coin-flip score): ", np.mean(evalLabels))
     sTime = time.time()
     # Create estimator
-    MTClassifier = learn.Estimator(model_fn = cNNMTModel,
+    digitClassifier = learn.Estimator(model_fn = cNNDigitsModel,
                                    model_dir = "./outdoors0to12ModelRGB/model",
                                    config=tf.contrib.learn.RunConfig(save_checkpoints_secs=50))
     
@@ -303,7 +304,7 @@ def main(unused_argv):
 
 
     # Train Model 
-    MTClassifier.fit(x=trainData,
+    digitClassifier.fit(x=trainData,
                     y=trainLabels,
                     batch_size = batchSize,
                     steps = maxSteps,
@@ -313,11 +314,11 @@ def main(unused_argv):
     print(np.mean(evalLabels))
     print("elapsed time: ",time.time()-sTime)
     # Evaluate model and display results
-    evalResults = MTClassifier.evaluate(x=evalData,
+    evalResults = digitClassifier.evaluate(x=evalData,
                                           y=evalLabels,
                                           metrics=metrics)
     print("Final cross-validation results", evalResults)
-    testResults = MTClassifier.evaluate(x=testData,
+    testResults = digitClassifier.evaluate(x=testData,
                                           y=testLabels,
                                           metrics=metrics)
     print("final results with test data (not seen during training, building of model):",testResults)
