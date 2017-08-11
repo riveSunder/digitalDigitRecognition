@@ -48,7 +48,7 @@ tf.app.flags.DEFINE_integer('batchSize', 66,
                             """Minibatch size""")
 tf.app.flags.DEFINE_integer('mySeed',1337,"""pseudorandom number gen. seed""")
 
-tf.app.flags.DEFINE_integer('iRGB',3,"""color channels (3 for RGB images, change to 1 for grayscale)""")
+tf.app.flags.DEFINE_integer('iRGB',3,"""color channels (3 for RGB images, change)""")
 
 lR = FLAGS.learningRate
 dORate = FLAGS.dropout
@@ -56,33 +56,34 @@ maxSteps = FLAGS.maxSteps
 batchSize = FLAGS.batchSize
 mySeed = FLAGS.mySeed
 iRGB = FLAGS.iRGB
+print("iRGB %i" % iRGB)
 # Graph parameters
 numLabels = 13
 convDepth = 16
 imgHeight = 48
 imgWidth = 64
 #imgWidth = 64		
-pool1Size = 2
+pool1Size = 4
 pool2Size = 2
-kern1Size = 8 #
-kern2Size = 4  #
+kern1Size = 8
+kern2Size = 4
 
 # logit size to 4 choices
 # hidden layer to 784 (from 1024)
 # second hidden layer (copy of first)
 
-nVisible = imgHeight * imgWidth * iRGB
+nVisible = imgHeight * imgWidth
 nHiddenDense = 1024
 nFlatPool = round(imgHeight/pool1Size/pool2Size)
-nPOOL = 96
-nPool = int((int(imgHeight/pool1Size/pool2Size)*int(imgWidth/pool1Size/pool2Size)*convDepth*2)/iRGB)
+nPOOL = 1536 #384 #1536 #4608 
+
 # learning parameters
 #lR = 1e-2 # learning rate
 #batchSize = 79
 
 
         
-def cNNDigitsModel(data, labels, mode):
+def cNNMTModel(data, labels, mode):
     # mode is a boolean that determines whether to apply dropout (for training)
     # or keep all layers (evaluation/test data)
     #inputLayer = tf.reshape(data, [-1,100,100,1])
@@ -96,7 +97,6 @@ def cNNDigitsModel(data, labels, mode):
         kernel_size = [kern1Size,kern1Size],
         padding = "same",
         activation = tf.nn.relu)
-
     # pooling (reduce size for faster learning)
     pool1 = tf.layers.max_pooling2d(
         inputs = conv1,
@@ -105,27 +105,28 @@ def cNNDigitsModel(data, labels, mode):
     # Second convo layer and pooling
     conv2 = tf.layers.conv2d(
         inputs=pool1,
-        filters = convDepth*2, #24x32x32x3
+        filters = convDepth*2,
         kernel_size = [kern2Size,kern2Size],
         padding = "same",
         activation = tf.nn.relu)
     pool2 = tf.layers.max_pooling2d(
         inputs = conv2,
         pool_size = pool2Size, # for square pool sizes can specify single number as size
-        strides = pool2Size) #12x16x64x3
+        strides = pool2Size)
     
     # dense layers
     # 5x5 depends on the max pooling. Here I've using max_pool2d with 
     # pool sizes of 5 and 4, so the dimension should be 100/5/4 = 5
-    
-    #pool2Flat = tf.reshape(pool2,
-    #                       [-1,
-    #                        nPOOL])
-    
+    #
+    print(np.shape(pool2))
+
     pool2Flat = tf.reshape(pool2,
                            [-1,
-                            nPool])
-
+                            nPOOL])
+    
+#    pool2Flat = tf.reshape(pool2,
+ #                          [-1,
+  #                          nFlatPool*nFlatPool*convDepth*2])
     denseHL1 = tf.layers.dense(inputs=pool2Flat,
                              units=nHiddenDense,
                              activation=tf.nn.relu)
@@ -165,9 +166,9 @@ def cNNDigitsModel(data, labels, mode):
                                rate=dORate,
                                training = mode == learn.ModeKeys.TRAIN)
 
-    dropout5 = (dropout4[-1,:,:,0]+dropout4[-1,:,:,3]+dropout4[-1,:,:,2])/3
-    logits = tf.layers.dense(inputs=dropout5,
-                             units=numLabels) # 13 units for 13 classes: 0-10 plus null and second 2
+
+    logits = tf.layers.dense(inputs=dropout4,
+                             units=numLabels) # 2 units for 2 classes: w & w/o MTs
     
 
     # loss and training op are None
@@ -223,128 +224,139 @@ init = tf.global_variables_initializer()
 def main(unused_argv):
     # Load the training data
    
-
-    myData = np.load('./outdoors0to12/out012Imgs.npy')
-    if(iRGB == 1):
-        myData = myData[:,:,:,0:]
-        print("grayscale")
-    myLabels = np.load('./outdoors0to12/out012Tgts.npy')
-    
-
-
-    if(1):
-	    np.random.seed(mySeed)
-	    np.random.shuffle(myData)
-	    np.random.seed(mySeed)
-	    np.random.shuffle(myLabels)
-
-    print("data shape: ", np.shape(myData), " labels shape: ", np.shape(myLabels), "data mean: ", np.mean(myData))#,"data mean (FFT): ", np.mean(myData[:,:,:,1]))
-    
-    
-    nSamples = np.shape(myLabels)[0]
-    
-
-    # Save 10% for the evaluations data set. 
-    evalSamples = round(0.1*nSamples)
-    testSamples = round(0.2*nSamples)
-
-    # group and normalize the datasets
-    trainData = np.array(myData[testSamples+1:nSamples,:],dtype="float32")
-    trainLabels = np.array(myLabels[testSamples+1:nSamples,:],dtype="float32")
-    trainData = (trainData - np.min(trainData) )/ np.max(trainData - np.min(trainData)) 
-    
-
-    evalData = np.array(myData[0:evalSamples,:],dtype="float32")
-    evalLabels = np.array(myLabels[0:evalSamples,:],dtype="float32")				
-    evalData = (evalData - np.min(evalData) )/ np.max(evalData - np.min(evalData)) 
-    
-    testData = np.array(myData[evalSamples+1:testSamples,:],dtype="float32")
-    testLabels = np.array(myLabels[evalSamples+1:testSamples,:],dtype="float32")           
-    testData = (testData - np.min(testData) )/ np.max(testData - np.min(testData)) 
-    
-    print("labels shape (training): ", np.shape(trainLabels)," (evaluation): ", np.shape(evalLabels))
-    print("mean value for evaluation labels (loaded coin-flip score): ", np.mean(evalLabels))
-    sTime = time.time()
-    # Create estimator
-    digitClassifier = learn.Estimator(model_fn = cNNDigitsModel,
-                                   model_dir = "./outdoors0to12ModelRGB/model",
-                                   config=tf.contrib.learn.RunConfig(save_checkpoints_secs=50))
-    
-    # Metrics for evaluation
-    metrics = {"accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
-                                           prediction_key="classes")
-              }
-   
-    # set up logging
-    tensors_to_log = {"probabilities": "softmaxTensor"}
-    logging_hook = tf.train.LoggingTensorHook(tensors = tensors_to_log,
-                                              every_n_iter = 10000)
-    validationMetrics = {
-    "accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
-                                           prediction_key="classes"),
-    "precision":
-        tf.contrib.learn.MetricSpec(
-            metric_fn=tf.contrib.metrics.streaming_precision,
-            prediction_key=tf.contrib.learn.PredictionKey.CLASSES),
-    "recall":
-        tf.contrib.learn.MetricSpec(
-            metric_fn=tf.contrib.metrics.streaming_recall,
-            prediction_key=tf.contrib.learn.PredictionKey.CLASSES)
-}
-
-    #evalua during training and stop early if necessary
-    validationMonitor = tf.contrib.learn.monitors.ValidationMonitor(
-        evalData,
-        evalLabels,
-        every_n_steps=50,
-        metrics=validationMetrics,
-        early_stopping_metric="accuracy",
-        early_stopping_metric_minimize=False,
-        early_stopping_rounds=32000)
-
-
-    # Train Model 
-    digitClassifier.fit(x=trainData,
-                    y=trainLabels,
-                    batch_size = batchSize,
-                    steps = maxSteps,
-                    monitors = [validationMonitor])
-    
-    
-    print(np.mean(evalLabels))
-    print("elapsed time: ",time.time()-sTime)
-    # Evaluate model and display results
-    evalResults = digitClassifier.evaluate(x=evalData,
-                                          y=evalLabels,
-                                          metrics=metrics)
-    print("Final cross-validation results", evalResults)
-    testResults = digitClassifier.evaluate(x=testData,
-                                          y=testLabels,
-                                          metrics=metrics)
-    print("final results with test data (not seen during training, building of model):",testResults)
-    if (0): #uncomment the following to get classification examples 
-        np.random.seed(16)
-        plt.figure()
+    with tf.Session():
+        myData = np.load('./outdoors0to12/out012Imgs.npy')
+        if(iRGB == 1):
+            myData = myData[:,:,:,0]
+        myLabels = np.load('./outdoors0to12/out012Tgts.npy')
         
-        for c in range(1,10):
-            plt.subplot(3,3,c)
-            myDemo = int(round(np.random.random() * 63))
-            plt.imshow(testData[myDemo],cmap="gray")
-            for ck in range(0,12):
-                if(testLabels[myDemo] == ck):
-                    plt.title("Digit recog as " + str(ck))
+
+
+        if(1):
+    	    np.random.seed(mySeed)
+    	    np.random.shuffle(myData)
+    	    np.random.seed(mySeed)
+    	    np.random.shuffle(myLabels)
+
+        print("data shape: ", np.shape(myData), " labels shape: ", np.shape(myLabels), "data mean: ", np.mean(myData))#,"data mean (FFT): ", np.mean(myData[:,:,:,1]))
         
-        plt.figure()
-        for c in range(1,10):
-            plt.subplot(3,3,c)
-            myDemo = int(round(np.random.random() * 63))
-            plt.imshow(testData[myDemo],cmap="gray")
-            for ck in range(0,12):
-                if(testLabels[myDemo] == ck):
-                    plt.title("Digit recog as " + str(ck))
+        
+        nSamples = np.shape(myLabels)[0]
+        
+
+        # Save 10% for the evaluations data set. 
+        evalSamples = round(0.1*nSamples)
+        testSamples = round(0.2*nSamples)
+
+        # group and normalize the datasets
+        trainData = np.array(myData[testSamples+1:nSamples,:],dtype="float32")
+        trainLabels = np.array(myLabels[testSamples+1:nSamples,:],dtype="float32")
+        trainData = (trainData - np.min(trainData) )/ np.max(trainData - np.min(trainData)) 
+        
+
+        evalData = np.array(myData[0:evalSamples,:],dtype="float32")
+        evalLabels = np.array(myLabels[0:evalSamples,:],dtype="float32")				
+        evalData = (evalData - np.min(evalData) )/ np.max(evalData - np.min(evalData)) 
+        
+        testData = np.array(myData[evalSamples+1:testSamples,:],dtype="float32")
+        testLabels = np.array(myLabels[evalSamples+1:testSamples,:],dtype="float32")           
+        testData = (testData - np.min(testData) )/ np.max(testData - np.min(testData)) 
+        
+        print("labels shape (training): ", np.shape(trainLabels)," (evaluation): ", np.shape(evalLabels))
+        print("mean value for evaluation labels (loaded coin-flip score): ", np.mean(evalLabels))
+        sTime = time.time()
+        # Create estimator
+        MTClassifier = learn.Estimator(model_fn = cNNMTModel,
+                                       model_dir = "./outdoors0to12ModelRGB/model",
+                                       config=tf.contrib.learn.RunConfig(save_checkpoints_secs=50))
+        
+        # Metrics for evaluation
+        metrics = {"accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
+                                               prediction_key="classes")
+                  }
+       
+        # set up logging
+        tensors_to_log = {"probabilities": "softmaxTensor"}
+        logging_hook = tf.train.LoggingTensorHook(tensors = tensors_to_log,
+                                                  every_n_iter = 10000)
+        validationMetrics = {
+        "accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
+                                               prediction_key="classes"),
+        "precision":
+            tf.contrib.learn.MetricSpec(
+                metric_fn=tf.contrib.metrics.streaming_precision,
+                prediction_key=tf.contrib.learn.PredictionKey.CLASSES),
+        "recall":
+            tf.contrib.learn.MetricSpec(
+                metric_fn=tf.contrib.metrics.streaming_recall,
+                prediction_key=tf.contrib.learn.PredictionKey.CLASSES)
+    }
+
+        #evalua during training and stop early if necessary
+        validationMonitor = tf.contrib.learn.monitors.ValidationMonitor(
+            evalData,
+            evalLabels,
+            every_n_steps=50,
+            metrics=validationMetrics,
+            early_stopping_metric="accuracy",
+            early_stopping_metric_minimize=False,
+            early_stopping_rounds=32000)
+
+
+        # Train Model 
+        MTClassifier.fit(x=trainData,
+                        y=trainLabels,
+                        batch_size = batchSize,
+                        steps = maxSteps,
+                        monitors = [validationMonitor])
+        
+        
+        print(np.mean(evalLabels))
+        print("elapsed time: ",time.time()-sTime)
+        # Evaluate model and display results
+        evalResults = MTClassifier.evaluate(x=evalData,
+                                              y=evalLabels,
+                                              metrics=metrics)
+        print("Final cross-validation results", evalResults)
+        testResults = MTClassifier.evaluate(x=testData,
+                                              y=testLabels,
+                                              metrics=metrics)
+        print("final results with test data (not seen during training, building of model):",testResults)
+        if (0): # Uncomment the following to get classification examples 
+            np.random.seed(mySeed)
+            plt.figure()
             
-                
-        plt.show()
+            for c in range(1,10):
+                plt.subplot(3,3,c)
+                myDemo = int(round(np.random.random() * 63))
+                plt.imshow(testData[myDemo])
+                myImg = testData[myDemo:myDemo+1,:,:,:]
+                print(np.shape(myImg))
+                print(np.shape(testData))
+                myLabel = testLabels[myDemo:myDemo+1,:]
+                testResult = MTClassifier.evaluate(x=myImg,
+                                              y=myLabel,
+                                              metrics=metrics)
+                for ck in range(0,numLabels):			
+                    if (int(testResult['accuracy'])):
+                        if(ck == myLabel):
+                            plt.title("Correctly recognized as %i" % ck)
+                    else:
+                        myTestLabel = myLabel
+                        myTestLabel[0:1,:] = ck
+                        testResult = MTClassifier.evaluate(x=myImg,
+                                              y=myTestLabel,
+                                              metrics=metrics)
+                        if(testResult['accuracy']):
+                            plt.title("Inccorrectly recognized as %i" % ck)
+
+
+                print(testResult)
+                #for ck in range(0,12):
+                 #   if(testLabels[myDemo] == ck):
+                        #plt.title("Digit label: %i " %ck, ", digit prediction: %i" % myPred )
+            
+            plt.show()
 
 if __name__ == "__main__":
     tf.app.run()
