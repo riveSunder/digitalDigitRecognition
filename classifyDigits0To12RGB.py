@@ -50,6 +50,10 @@ tf.app.flags.DEFINE_integer('mySeed',1337,"""pseudorandom number gen. seed""")
 
 tf.app.flags.DEFINE_integer('iRGB',3,"""color channels (3 for RGB images, change)""")
 
+
+tf.app.flags.DEFINE_float('mom',1e-6,"""momentum coefficient""")
+
+mom = FLAGS.mom
 lR = FLAGS.learningRate
 dORate = FLAGS.dropout
 maxSteps = FLAGS.maxSteps
@@ -59,11 +63,10 @@ iRGB = FLAGS.iRGB
 print("iRGB %i" % iRGB)
 # Graph parameters
 numLabels = 13
-convDepth = 16
+convDepth = 32
 imgHeight = 48
 imgWidth = 64
-#imgWidth = 64		
-pool1Size = 4
+pool1Size = 4   
 pool2Size = 2
 kern1Size = 8
 kern2Size = 4
@@ -73,9 +76,9 @@ kern2Size = 4
 # second hidden layer (copy of first)
 
 nVisible = imgHeight * imgWidth
-nHiddenDense = 1024
+nHiddenDense =1024 # 2048
 nFlatPool = round(imgHeight/pool1Size/pool2Size)
-nPOOL = 1536 #384 #1536 #4608 
+nPOOL = 3072 #1536 #768 #3072 #384 #1536 #4608 
 
 # learning parameters
 #lR = 1e-2 # learning rate
@@ -99,7 +102,7 @@ def cNNMTModel(data, labels, mode):
         activation = tf.nn.relu)
     # pooling (reduce size for faster learning)
     pool1 = tf.layers.max_pooling2d(
-        inputs = conv1,
+        inputs =     conv1,
         pool_size = pool1Size,
         strides = pool1Size)
     # Second convo layer and pooling
@@ -190,13 +193,9 @@ def cNNMTModel(data, labels, mode):
 
     # Training op
     if mode == learn.ModeKeys.TRAIN:
-        #trainOp = tf.train.MomentumOptimizer(lR,mom).minimize(loss,global_step = tf.contrib.framework.get_global_step())
-        trainOp = tf.train.AdamOptimizer(learning_rate=lR,beta1=0.9,beta2 = 0.999,epsilon=1e-08,use_locking=False,name='Adam').minimize(loss,global_step = tf.contrib.framework.get_global_step())
-        #trainOp = tf.contrib.layers.optimize_loss(
-        #loss = loss,
-        #global_step = tf.contrib.framework.get_global_step(),
-        #learning_rate = lR,
-        #optimizer = "SGD")
+        rainOp = tf.train.MomentumOptimizer(lR,mom).minimize(loss,global_step = tf.contrib.framework.get_global_step())
+        #trainOp = tf.train.AdamOptimizer(learning_rate=lR,beta1=0.9,beta2 = 0.999,epsilon=1e-08,use_locking=False,name='Adam').minimize(loss,global_step = tf.contrib.framework.get_global_step())
+        trainOp = tf.contrib.layers.optimize_loss(loss = loss,global_step = tf.contrib.framework.get_global_step(),learning_rate = lR,optimizer = "SGD")
     
     # Gen. Pred.
     predictions = {
@@ -268,7 +267,7 @@ def main(unused_argv):
         # Create estimator
         MTClassifier = learn.Estimator(model_fn = cNNMTModel,
                                        model_dir = "./outdoors0to12ModelRGB/model",
-                                       config=tf.contrib.learn.RunConfig(save_checkpoints_secs=50))
+                                       config=tf.contrib.learn.RunConfig(save_checkpoints_secs=600))
         
         # Metrics for evaluation
         metrics = {"accuracy": learn.MetricSpec(metric_fn=tf.metrics.accuracy,
@@ -300,7 +299,7 @@ def main(unused_argv):
             metrics=validationMetrics,
             early_stopping_metric="accuracy",
             early_stopping_metric_minimize=False,
-            early_stopping_rounds=32000)
+            early_stopping_rounds=132000)
 
 
         # Train Model 
@@ -310,7 +309,7 @@ def main(unused_argv):
                         steps = maxSteps,
                         monitors = [validationMonitor])
         
-        
+        dORate = 0.0
         print(np.mean(evalLabels))
         print("elapsed time: ",time.time()-sTime)
         # Evaluate model and display results
@@ -324,34 +323,36 @@ def main(unused_argv):
         print("final results with test data (not seen during training, building of model):",testResults)
         if (0): # Uncomment the following to get classification examples 
             np.random.seed(mySeed)
-            plt.figure()
-            
-            for c in range(1,10):
-                plt.subplot(3,3,c)
-                myDemo = int(round(np.random.random() * 63))
-                plt.imshow(testData[myDemo])
-                myImg = testData[myDemo:myDemo+1,:,:,:]
-                print(np.shape(myImg))
-                print(np.shape(testData))
-                myLabel = testLabels[myDemo:myDemo+1,:]
-                testResult = MTClassifier.evaluate(x=myImg,
-                                              y=myLabel,
-                                              metrics=metrics)
-                for ck in range(0,numLabels):			
-                    if (int(testResult['accuracy'])):
-                        if(ck == myLabel):
-                            plt.title("Correctly recognized as %i" % ck)
-                    else:
-                        myTestLabel = myLabel
-                        myTestLabel[0:1,:] = ck
-                        testResult = MTClassifier.evaluate(x=myImg,
-                                              y=myTestLabel,
-                                              metrics=metrics)
-                        if(testResult['accuracy']):
-                            plt.title("Inccorrectly recognized as %i" % ck)
+            for k in range(0,5):
+                
+                plt.figure()
+                
+                for c in range(1,10):
+                    plt.subplot(3,3,c)
+                    myDemo = int(round(np.random.random() * 63))
+                    plt.imshow(testData[myDemo])
+                    myImg = testData[myDemo:myDemo+1,:,:,:]
+                    print(np.shape(myImg))
+                    print(np.shape(testData))
+                    myLabel = testLabels[myDemo:myDemo+1,:]
+                    testResult = MTClassifier.evaluate(x=myImg,
+                                                  y=myLabel,
+                                                  metrics=metrics)
+                    for ck in range(0,numLabels):			
+                        if (int(testResult['accuracy'])):
+                            if(ck == myLabel):
+                                plt.title("Correctly recognized as %i" % ck)
+                        else:
+                            myTestLabel = myLabel
+                            myTestLabel[0:1,:] = ck
+                            testResult = MTClassifier.evaluate(x=myImg,
+                                                  y=myTestLabel,
+                                                  metrics=metrics)
+                            if(testResult['accuracy']):
+                                plt.title("Inccorrectly recognized as %i" % ck)
 
 
-                print(testResult)
+                    print(testResult)
                 #for ck in range(0,12):
                  #   if(testLabels[myDemo] == ck):
                         #plt.title("Digit label: %i " %ck, ", digit prediction: %i" % myPred )
